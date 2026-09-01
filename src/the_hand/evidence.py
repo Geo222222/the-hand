@@ -9,8 +9,12 @@ from .domain import ExecutionReceipt
 
 @dataclass(frozen=True, slots=True)
 class EvidenceDraft:
+    """Private Big Book proof draft produced by The Hand."""
+
     event_type: str
     evidence_class: str
+    privacy_class: str
+    visibility_scope: tuple[str, ...]
     subject_id: str
     payload: bytes
     payload_ref: str | None
@@ -19,7 +23,7 @@ class EvidenceDraft:
 
 
 class EvidencePublisher(Protocol):
-    """Producer-side signer/client for Geo222222/the-book."""
+    """Private Big Book producer gateway. This is not a public-chain publisher."""
 
     def publish(self, draft: EvidenceDraft) -> str: ...
 
@@ -39,6 +43,8 @@ def execution_draft(
     return EvidenceDraft(
         event_type="HAND.EXECUTION",
         evidence_class="ECONOMIC",
+        privacy_class="CONFIDENTIAL_EVIDENCE",
+        visibility_scope=("HAND_EXECUTION", "BENJAMIN_RECONCILIATION", "BENJAMIN_AUDITOR"),
         subject_id=receipt.receipt_id,
         payload=payload,
         payload_ref=None,
