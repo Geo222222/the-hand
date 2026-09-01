@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://benjamin/contracts/execution_receipt.schema.json",
+  "title": "ExecutionReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "authorization_id",
+    "idempotency_key",
+    "status",
+    "executed_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "receipt_id": {"type": "string", "pattern": "^EXE-"},
+    "authorization_id": {"type": "string", "pattern": "^AUTH-"},
+    "idempotency_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "status": {"enum": ["ACCEPTED", "FILLED", "PARTIAL", "REJECTED", "CANCELLED", "DRY_RUN"]},
+    "venue_order_id": {"type": ["string", "null"]},
+    "executed_quantity": {"type": ["string", "null"]},
+    "average_price": {"type": ["string", "null"]},
+    "executed_at": {"type": "string", "format": "date-time"},
+    "message": {"type": ["string", "null"]}
+  }
+}
