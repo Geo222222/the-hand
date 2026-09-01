@@ -1,57 +1,52 @@
 # The Hand
 
-> **The Hand executes. It does not decide.**
+> **The Hand executes. It does not decide. It proves what it did.**
 
-The Hand is Benjamin's isolated execution boundary. It accepts a valid `AuthorizedExecutionRequest`, verifies that the authorization is trusted and unexpired, executes the instruction exactly once, and returns an `ExecutionReceipt`.
+The Hand is Benjamin's isolated execution boundary. It accepts an exact authorization, independently verifies that matching `BENJAMIN.AUTHORIZATION` evidence exists in The Book, performs the instruction exactly once, and publishes its own `HAND.EXECUTION` evidence.
 
-The Hand contains no research, signal generation, portfolio construction, investment thesis, autonomous strategy, investor logic, or distribution logic.
-
-## Constitutional boundary
+## Evidence-aware boundary
 
 ```text
-Epinnox
+Benjamin
   |
+  | BENJAMIN.AUTHORIZATION
   v
-Benjamin / Steward
-  |
-  v
-Watchman
-  |
-  v
-AuthorizedExecutionRequest
+The Book <------ independent verification
   |
   v
 THE HAND
   |
+  | exact venue action
   v
-Broker / Exchange / Venue
+Venue
+  |
+  v
+ExecutionReceipt
+  |
+  | HAND.EXECUTION
+  v
+The Book
 ```
 
-The Hand is not permitted to:
+The verifier no longer returns a bare boolean. A successful verification returns an `AuthorizationProof` containing the Book authorization receipt and lifecycle correlation id. The Hand uses that exact Book receipt as the causal parent of its execution evidence.
+
+## The Hand may not
 
 - invent an order;
-- change BUY to SELL or SELL to BUY;
-- increase or decrease authorized quantity;
-- substitute an instrument;
-- extend an expired authorization;
-- execute an authorization that cannot be independently verified;
+- infer investment intent;
+- change side, instrument, or quantity;
+- extend an authorization;
+- trust a Benjamin claim that cannot be independently resolved to The Book;
 - execute the same idempotency key twice;
-- infer investment intent from market data or model output.
+- sign `BENJAMIN.*` or `EPINNOX.*` evidence;
+- rewrite Book history.
 
-## H0 — Execution Boundary Kernel
+## H1 — Evidence-aware Execution Kernel
 
-H0 provides:
+H1 is still **dry run only**. Every accepted dry-run execution must produce a `HAND.EXECUTION` evidence draft linked to the verified Benjamin authorization receipt.
 
-- strict parsing of Benjamin's versioned execution contract;
-- default-deny authorization verification;
-- expiration enforcement;
-- exact-instruction propagation;
-- idempotent execution receipts;
-- a dry-run adapter only;
-- tests proving that malformed, expired, untrusted, and duplicate instructions cannot become duplicate venue actions.
+A future live milestone requires a durable execution outbox, production signing key isolation, Book availability/recovery policy, concrete venue adapter, reconciliation, kill switch, and qualification evidence. H1 intentionally refuses live adapters.
 
 ## Status
 
-**DRY RUN ONLY. NO LIVE BROKER OR EXCHANGE ADAPTER EXISTS IN H0.**
-
-Live execution is a future milestone and must require an explicit constitutional change, concrete venue adapter, credential boundary, reconciliation path, kill switch, and production qualification.
+**DRY RUN ONLY — NO LIVE BROKER OR EXCHANGE EXECUTION.**

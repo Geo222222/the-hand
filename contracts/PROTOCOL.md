@@ -1,15 +1,24 @@
-# Benjamin ↔ The Hand Protocol v1.0
+# Benjamin / Book / Hand Protocol
 
-The JSON schemas in this directory are the cross-repository boundary.
+The execution instruction remains `AuthorizedExecutionRequest` schema v1.0.
 
-For B0/H0:
+Before The Hand accepts that instruction, its `AuthorizationVerifier` must independently resolve the request to valid `BENJAMIN.AUTHORIZATION` evidence in `Geo222222/the-book` and return:
 
-- Benjamin is the producer of `AuthorizedExecutionRequest`.
-- The Hand is the consumer.
-- The Hand produces `ExecutionReceipt`.
-- Benjamin's Book is the intended consumer of receipts.
-- Decimal quantities are serialized as strings; binary floating point is not part of the protocol.
-- `additionalProperties: false` is intentional. Silent contract drift is prohibited.
-- H0 authorization trust is injected through `AuthorizationVerifier`; cryptographic signing/key rotation is reserved for a later milestone and must not be replaced by trusting an `AUTH-` prefix.
+```text
+AuthorizationProof
+  book_receipt_id
+  correlation_id
+```
 
-The schema copies should remain byte-for-byte aligned with the matching Benjamin protocol version.
+After exact execution, The Hand publishes:
+
+```text
+event_type: HAND.EXECUTION
+evidence_class: ECONOMIC
+subject_id: ExecutionReceipt.receipt_id
+correlation_id: inherited from authorization proof
+causation_receipt_id: Benjamin authorization Book receipt
+payload: canonical ExecutionReceipt wire representation
+```
+
+Producer signing and Book ingestion are adapter concerns. The Hand never receives The Book's private infrastructure keys and never signs for another namespace.

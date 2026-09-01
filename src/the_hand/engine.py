@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from .adapter import VenueAdapter
 from .domain import ExecutionReceipt, ExecutionRequest
+from .evidence import EvidencePublisher, execution_draft
 from .verification import AuthorizationVerifier
 
 
@@ -32,24 +34,42 @@ class LiveExecutionDisabled(HandError):
     pass
 
 
-class ExecutionEngine:
-    """H0 execution boundary: exact, verified, idempotent, dry-run only."""
+class EvidencePublicationError(HandError):
+    pass
 
-    def __init__(self, adapter: VenueAdapter, verifier: AuthorizationVerifier) -> None:
+
+@dataclass(frozen=True, slots=True)
+class RecordedExecution:
+    receipt: ExecutionReceipt
+    book_receipt_id: str
+
+
+class ExecutionEngine:
+    """H1 execution boundary: exact, Book-verified, idempotent, evidence-recorded, dry-run only."""
+
+    def __init__(
+        self,
+        adapter: VenueAdapter,
+        verifier: AuthorizationVerifier,
+        evidence_publisher: EvidencePublisher,
+    ) -> None:
         self._adapter = adapter
         self._verifier = verifier
-        self._receipts: dict[str, tuple[str, ExecutionReceipt]] = {}
+        self._evidence_publisher = evidence_publisher
+        self._records: dict[str, tuple[str, RecordedExecution]] = {}
 
-    def execute(self, wire: dict[str, object], *, now: datetime | None = None) -> ExecutionReceipt:
+    def execute(self, wire: dict[str, object], *, now: datetime | None = None) -> RecordedExecution:
         try:
             request = ExecutionRequest.from_wire(wire)
         except ValueError as exc:
             raise ContractError(str(exc)) from exc
 
         if self._adapter.mode != "DRY_RUN":
-            raise LiveExecutionDisabled("H0 permits DRY_RUN adapters only")
-        if not self._verifier.verify(request):
-            raise UntrustedAuthorization("authorization verifier denied request")
+            raise LiveExecutionDisabled("H1 permits DRY_RUN adapters only")
+
+        proof = self._verifier.verify(request)
+        if proof is None:
+            raise UntrustedAuthorization("no trusted BENJAMIN.AUTHORIZATION evidence found in The Book")
 
         current_time = now or datetime.now(timezone.utc)
         if current_time.tzinfo is None:
@@ -58,12 +78,12 @@ class ExecutionEngine:
             raise AuthorizationExpired("authorization has expired")
 
         fingerprint = request.fingerprint()
-        existing = self._receipts.get(request.idempotency_key)
+        existing = self._records.get(request.idempotency_key)
         if existing is not None:
-            existing_fingerprint, receipt = existing
+            existing_fingerprint, record = existing
             if existing_fingerprint != fingerprint:
                 raise IdempotencyConflict("idempotency key reused with different instruction")
-            return receipt
+            return record
 
         result = self._adapter.execute_exact(request)
         receipt = ExecutionReceipt(
@@ -78,5 +98,20 @@ class ExecutionEngine:
             executed_at=current_time,
             message=result.message,
         )
-        self._receipts[request.idempotency_key] = (fingerprint, receipt)
-        return receipt
+
+        try:
+            book_receipt_id = self._evidence_publisher.publish(
+                execution_draft(
+                    receipt,
+                    correlation_id=proof.correlation_id,
+                    authorization_book_receipt_id=proof.book_receipt_id,
+                )
+            )
+        except Exception as exc:
+            raise EvidencePublicationError(
+                "execution evidence publication failed; H1 dry-run result is not considered recorded"
+            ) from exc
+
+        record = RecordedExecution(receipt=receipt, book_receipt_id=book_receipt_id)
+        self._records[request.idempotency_key] = (fingerprint, record)
+        return record
