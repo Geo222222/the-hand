@@ -107,7 +107,7 @@ def test_expired_authorization_is_never_executed() -> None:
     assert adapter.calls == 0
 
 
-def test_exact_instruction_reaches_adapter_and_execution_is_recorded_in_book() -> None:
+def test_exact_instruction_reaches_adapter_and_private_execution_proof_is_recorded() -> None:
     adapter = CountingAdapter()
     publisher = RecordingPublisher()
     record = engine(adapter=adapter, publisher=publisher).execute(wire(), now=NOW)
@@ -118,9 +118,17 @@ def test_exact_instruction_reaches_adapter_and_execution_is_recorded_in_book() -
     assert adapter.last_request.quantity == Decimal("2.5")
     assert record.receipt.status is ExecutionStatus.DRY_RUN
     assert record.book_receipt_id == "BOOK-HAND-001"
-    assert publisher.drafts[0].event_type == "HAND.EXECUTION"
-    assert publisher.drafts[0].causation_receipt_id == "BOOK-AUTH-001"
-    assert publisher.drafts[0].correlation_id == "LIFE-001"
+    draft = publisher.drafts[0]
+    assert draft.event_type == "HAND.EXECUTION"
+    assert draft.privacy_class == "CONFIDENTIAL_EVIDENCE"
+    assert draft.visibility_scope == (
+        "HAND_EXECUTION",
+        "BENJAMIN_RECONCILIATION",
+        "BENJAMIN_AUDITOR",
+    )
+    assert "PUBLIC" not in draft.visibility_scope
+    assert draft.causation_receipt_id == "BOOK-AUTH-001"
+    assert draft.correlation_id == "LIFE-001"
 
 
 def test_duplicate_idempotency_key_returns_same_record_without_second_action_or_receipt() -> None:
@@ -157,7 +165,7 @@ def test_h1_rejects_live_adapter() -> None:
     assert adapter.calls == 0
 
 
-def test_book_publication_failure_is_explicit_and_record_is_not_cached() -> None:
+def test_big_book_publication_failure_is_explicit_and_record_is_not_cached() -> None:
     adapter = CountingAdapter()
     subject = engine(adapter=adapter, publisher=FailingPublisher())
     with pytest.raises(EvidencePublicationError):
