@@ -74,8 +74,12 @@ def test_untrusted_authorization_is_denied_before_adapter_call() -> None:
 def test_expired_authorization_is_never_executed() -> None:
     adapter = CountingAdapter()
     engine = ExecutionEngine(adapter, AllowVerifier())
+    expired = wire(
+        issued_at=(NOW - timedelta(minutes=10)).isoformat(),
+        expires_at=(NOW - timedelta(seconds=1)).isoformat(),
+    )
     with pytest.raises(AuthorizationExpired):
-        engine.execute(wire(expires_at=(NOW - timedelta(seconds=1)).isoformat()), now=NOW)
+        engine.execute(expired, now=NOW)
     assert adapter.calls == 0
 
 
