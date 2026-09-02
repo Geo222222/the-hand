@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from .domain import ExecutionReceipt
+from .verification import AuthorizationProof
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceDraft:
-    """Private Big Book proof draft produced by The Hand."""
+    """Private HAND.* Book Evidence Protocol v2 draft produced by The Hand."""
 
     event_type: str
     evidence_class: str
@@ -20,10 +22,17 @@ class EvidenceDraft:
     payload_ref: str | None
     correlation_id: str
     causation_receipt_id: str
+    evidence_receipt_ids: tuple[str, ...]
+    source_event_at: datetime | None
+    occurred_at: datetime
+    known_at: datetime
+    produced_at: datetime
+    valid_from: datetime | None
+    valid_until: datetime | None
 
 
 class EvidencePublisher(Protocol):
-    """Private Big Book producer gateway. This is not a public-chain publisher."""
+    """Producer-side gateway that durably persists signed HAND.* evidence."""
 
     def publish(self, draft: EvidenceDraft) -> str: ...
 
@@ -31,8 +40,7 @@ class EvidencePublisher(Protocol):
 def execution_draft(
     receipt: ExecutionReceipt,
     *,
-    correlation_id: str,
-    authorization_book_receipt_id: str,
+    authorization: AuthorizationProof,
 ) -> EvidenceDraft:
     payload = json.dumps(
         receipt.to_wire(),
@@ -47,7 +55,14 @@ def execution_draft(
         visibility_scope=("HAND_EXECUTION", "BENJAMIN_RECONCILIATION", "BENJAMIN_AUDITOR"),
         subject_id=receipt.receipt_id,
         payload=payload,
-        payload_ref=None,
-        correlation_id=correlation_id,
-        causation_receipt_id=authorization_book_receipt_id,
+        payload_ref=f"vault://hand/executions/{receipt.receipt_id}",
+        correlation_id=authorization.correlation_id,
+        causation_receipt_id=authorization.book_receipt_id,
+        evidence_receipt_ids=(authorization.decision_receipt_id,),
+        source_event_at=authorization.evaluated_at,
+        occurred_at=receipt.executed_at,
+        known_at=receipt.executed_at,
+        produced_at=receipt.executed_at,
+        valid_from=None,
+        valid_until=None,
     )
