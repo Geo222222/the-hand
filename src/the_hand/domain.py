@@ -121,6 +121,9 @@ class ExecutionReceipt:
     governance_id: str
     capability: str
     idempotency_key: str
+    instrument: str
+    side: OrderSide
+    requested_quantity: Decimal
     status: ExecutionStatus
     venue_order_id: str | None
     executed_quantity: Decimal | None
@@ -136,6 +139,9 @@ class ExecutionReceipt:
             "governance_id": self.governance_id,
             "capability": self.capability,
             "idempotency_key": self.idempotency_key,
+            "instrument": self.instrument,
+            "side": self.side.value,
+            "requested_quantity": format(self.requested_quantity, "f"),
             "status": self.status.value,
             "venue_order_id": self.venue_order_id,
             "executed_quantity": None if self.executed_quantity is None else format(self.executed_quantity, "f"),
