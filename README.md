@@ -29,54 +29,70 @@ The Hand
 
 A capability is not authority. The existence of an exchange adapter, bank API, signer, or payment integration does not permit The Hand to use it on its own.
 
-## Target authority path
+## Authority path
 
 ```text
-ZLJ intelligence
+ZLJ.INTELLIGENCE
       |
       v
-Benjamin decision
+BENJAMIN.DECISION
       |
       v
-Watchman
-AUTHORIZE / BLOCK
+WATCHMAN.AUTHORIZATION / WATCHMAN.BLOCK
       |
-      | exact authorized action envelope
+      | exact bounded capability
       v
 THE HAND
       |
-      | select permitted capability/adapter
+      | independently verify authorization
       | perform exact authorized effect
       v
 External system
       |
       v
-Execution / Action Receipt
+HAND.EXECUTION
       |
       v
 THE BOOK
 ```
 
-The target live contract is therefore **Watchman-authorized action -> Hand capability invocation**.
+H2 implements **Watchman-authorized action -> Hand capability invocation**. Benjamin cannot authorize its own economic decision.
 
 ## What The Hand receives
 
-The Hand should receive only what is required to perform and prove the action, such as:
+The H2 execution request carries only the fields required to perform and prove the action:
 
 ```text
-authorization id
-capability id / action type
-account or execution context
-instrument / asset / destination where applicable
-side / operation
-quantity / amount / bounded constraints
-provider-routing permissions if any
-expiry
-idempotency key
-Watchman authorization evidence reference
+authorization_book_receipt_id
+capability
+idempotency_key
+instrument
+side
+quantity
+decision_id
+governance_id
+expires_at
 ```
 
-It does not need the full Benjamin thesis, unrelated portfolio state, ZLJ model stack, investor records, or internal deliberations.
+The request points to a specific committed `WATCHMAN.AUTHORIZATION` Book receipt. It does not itself create authority.
+
+The Hand does not need the full Benjamin thesis, unrelated portfolio state, ZLJ model stack, investor records, or internal deliberations.
+
+## Independent authorization verification
+
+Before any adapter call, The Hand independently verifies that the committed Book evidence:
+
+- was produced by Watchman;
+- is exactly `WATCHMAN.AUTHORIZATION`, not `WATCHMAN.BLOCK`;
+- has a valid Ed25519 Watchman signature;
+- has an untampered payload digest;
+- contains only passing governance checks;
+- authorizes the same capability, instrument, side, quantity and idempotency key requested;
+- covers the same Benjamin decision and governance result;
+- has consistent evaluation/production/recording timing;
+- has not expired.
+
+A legacy `BENJAMIN.AUTHORIZATION` wire is rejected by H2 rather than silently upgraded.
 
 ## Capability routing
 
@@ -115,10 +131,10 @@ This keeps ZLJ from becoming an executor simply because an exchange API supports
 
 ## Private proof boundary
 
-Every material Hand outcome should be causally linked to the exact governed authorization and preserved through The Book under minimum-necessary evidence rules.
+Every material Hand outcome is designed to be causally linked to the exact Watchman authorization and preserved through The Book under minimum-necessary evidence rules.
 
 ```text
-Watchman authorization
+WATCHMAN.AUTHORIZATION
        |
        v
 THE HAND
@@ -127,11 +143,13 @@ THE HAND
 external action
        |
        v
-Hand receipt / reconciliation
+HAND.EXECUTION
        |
        v
 BIG BOOK
 ```
+
+`HAND.EXECUTION` records the requested instrument, side and quantity together with outcome fields. The Hand signs this evidence with its own `HAND.*` identity and persists the exact signed record in a durable outbox before Book delivery.
 
 Ordinary execution/action evidence is private. The Hand does not publish actions directly to the Little Book.
 
@@ -141,15 +159,21 @@ If the institution later needs an external proof, The Book creates a separate mi
 
 Venue credentials, signing keys, account secrets, raw identity data, banking credentials, and other secret/regulated material stay in restricted operational storage or governed secret systems.
 
-They are not placed in prompts, ordinary model memory, Git, or raw immutable proof payloads.
+The Hand Book identity uses separate runtime secrets:
 
-General-purpose reasoning agents should not hold unrestricted production signing material.
+- `HAND_BOOK_KEY_ID`
+- `HAND_BOOK_ED25519_PRIVATE_KEY_B64`
+
+The Hand key signs only `HAND.*` and must not be reused as the Watchman, Benjamin, or ZLJ identity.
+
+Credentials and secret material are not placed in prompts, ordinary model memory, Git, or raw immutable proof payloads. General-purpose reasoning agents should not hold unrestricted production signing material.
 
 ## The Hand may not
 
 - invent an economic action;
 - infer investment intent from prose;
 - treat a Benjamin decision as self-authorizing;
+- treat a Watchman block as execution authority;
 - bypass or weaken Watchman;
 - change side, instrument, destination, amount, account, or other material intent outside the authorization;
 - extend an authorization;
@@ -160,18 +184,14 @@ General-purpose reasoning agents should not hold unrestricted production signing
 - rewrite Book history;
 - automatically project execution history to the Little Book.
 
-## Current H1 implementation versus target architecture
+## Current H2 status
 
-The current H1 foundation was built around a narrower execution kernel and may still verify a legacy `BENJAMIN.AUTHORIZATION` proof. That is an implementation fact, not the target constitutional ownership model.
+H2 implements the cryptographic/contract authority bridge but remains **dry-run only**. No H2 code authorizes live broker, exchange, bank, custody, payment, or transfer actions.
 
-Future bridge work should migrate the live semantic authority toward **Watchman authorization** while preserving historical proof meaning and avoiding silent reinterpretation of already-issued records.
+A future live capability still requires concrete adapter qualification, isolated credentials/signing, durable reconciliation, kill switches, failure recovery, capability-specific limits, provider failure handling, and explicit governing promotion.
 
-H1 remains dry-run only. No current documentation change authorizes live broker, exchange, bank, custody, payment, or transfer actions.
-
-A future live capability requires durable outbox/receipt behavior, isolated credentials/signing, concrete adapter qualification, reconciliation, kill switches, failure recovery, and Watchman-compatible authorization evidence.
-
-See `COVENANT.md` and `PRIVACY.md`.
+See `COVENANT.md`, `PRIVACY.md`, and `contracts/PROTOCOL.md`.
 
 ## Status
 
-**AUTHORIZED CAPABILITY FOUNDATION / DRY RUN — NO LIVE FINANCIAL EXECUTION.**
+**WATCHMAN-AUTHORIZED CAPABILITY FOUNDATION / DRY RUN — NO LIVE FINANCIAL EXECUTION.**

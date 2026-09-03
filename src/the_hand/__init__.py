@@ -1,9 +1,22 @@
-"""The Hand: exact, authorization-gated execution boundary."""
+"""The Hand: exact, Watchman-authorized execution boundary."""
 
 from .adapter import DryRunAdapter, VenueAdapter, VenueResult
+from .book_bridge import (
+    ACKNOWLEDGED,
+    PENDING,
+    QUARANTINED,
+    HandBookError,
+    HandBookEvidencePublisher,
+    HandBookOutbox,
+    HandBookSigner,
+    HandOutboxConflict,
+    HandPublicIdentity,
+    load_hand_book_signer_from_env,
+)
 from .domain import ExecutionReceipt, ExecutionRequest, ExecutionStatus, OrderSide
 from .engine import (
     AuthorizationExpired,
+    AuthorizationNotYetValid,
     ContractError,
     EvidencePublicationError,
     ExecutionEngine,
@@ -14,12 +27,24 @@ from .engine import (
     UntrustedAuthorization,
 )
 from .evidence import EvidenceDraft, EvidencePublisher
-from .verification import AuthorizationProof, AuthorizationVerifier, DenyAllVerifier
+from .verification import (
+    AuthorizationProof,
+    AuthorizationVerifier,
+    BookEvidenceSource,
+    CommittedBookEvidence,
+    DenyAllVerifier,
+    WatchmanAuthorizationVerifier,
+    WatchmanKeyRegistry,
+)
 
 __all__ = [
+    "ACKNOWLEDGED",
     "AuthorizationExpired",
+    "AuthorizationNotYetValid",
     "AuthorizationProof",
     "AuthorizationVerifier",
+    "BookEvidenceSource",
+    "CommittedBookEvidence",
     "ContractError",
     "DenyAllVerifier",
     "DryRunAdapter",
@@ -30,12 +55,23 @@ __all__ = [
     "ExecutionReceipt",
     "ExecutionRequest",
     "ExecutionStatus",
+    "HandBookError",
+    "HandBookEvidencePublisher",
+    "HandBookOutbox",
+    "HandBookSigner",
     "HandError",
+    "HandOutboxConflict",
+    "HandPublicIdentity",
     "IdempotencyConflict",
     "LiveExecutionDisabled",
     "OrderSide",
+    "PENDING",
+    "QUARANTINED",
     "RecordedExecution",
     "UntrustedAuthorization",
     "VenueAdapter",
     "VenueResult",
+    "WatchmanAuthorizationVerifier",
+    "WatchmanKeyRegistry",
+    "load_hand_book_signer_from_env",
 ]

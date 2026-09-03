@@ -24,97 +24,89 @@ class ExecutionStatus(StrEnum):
     DRY_RUN = "DRY_RUN"
 
 
-_REQUIRED = {
+_REQUIRED_V2 = {
     "schema_version",
-    "authorization_id",
+    "authorization_book_receipt_id",
+    "capability",
     "idempotency_key",
-    "fund_id",
     "instrument",
     "side",
     "quantity",
     "decision_id",
-    "risk_id",
-    "issued_at",
+    "governance_id",
     "expires_at",
 }
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionRequest:
+    """Exact capability request whose authority is a Watchman Book receipt."""
+
     schema_version: str
-    authorization_id: str
+    authorization_book_receipt_id: str
+    capability: str
     idempotency_key: str
-    fund_id: str
     instrument: str
     side: OrderSide
     quantity: Decimal
     decision_id: str
-    risk_id: str
-    issued_at: datetime
+    governance_id: str
     expires_at: datetime
 
     @classmethod
     def from_wire(cls, wire: dict[str, Any]) -> "ExecutionRequest":
-        if set(wire) != _REQUIRED:
-            missing = sorted(_REQUIRED - set(wire))
-            extra = sorted(set(wire) - _REQUIRED)
+        if set(wire) != _REQUIRED_V2:
+            missing = sorted(_REQUIRED_V2 - set(wire))
+            extra = sorted(set(wire) - _REQUIRED_V2)
             raise ValueError(f"contract fields mismatch; missing={missing}, extra={extra}")
-        if wire["schema_version"] != "1.0":
-            raise ValueError("unsupported schema_version")
-        if not isinstance(wire["authorization_id"], str) or not wire["authorization_id"].startswith("AUTH-"):
-            raise ValueError("invalid authorization_id")
+        if wire["schema_version"] != "2.0":
+            raise ValueError("unsupported schema_version; The Hand requires Watchman-authorized v2 requests")
+        for field in ("authorization_book_receipt_id", "capability", "instrument"):
+            if not isinstance(wire[field], str) or not wire[field]:
+                raise ValueError(f"{field} is required")
         if not isinstance(wire["decision_id"], str) or not wire["decision_id"].startswith("DEC-"):
             raise ValueError("invalid decision_id")
-        if not isinstance(wire["risk_id"], str) or not wire["risk_id"].startswith("RSK-"):
-            raise ValueError("invalid risk_id")
+        if not isinstance(wire["governance_id"], str) or not wire["governance_id"]:
+            raise ValueError("invalid governance_id")
         if not isinstance(wire["idempotency_key"], str) or not re.fullmatch(r"[a-f0-9]{64}", wire["idempotency_key"]):
             raise ValueError("invalid idempotency_key")
-        if not isinstance(wire["fund_id"], str) or not wire["fund_id"]:
-            raise ValueError("fund_id is required")
-        if not isinstance(wire["instrument"], str) or not wire["instrument"]:
-            raise ValueError("instrument is required")
 
         try:
             side = OrderSide(wire["side"])
-            quantity = Decimal(wire["quantity"])
-            issued_at = datetime.fromisoformat(wire["issued_at"])
-            expires_at = datetime.fromisoformat(wire["expires_at"])
+            quantity = Decimal(str(wire["quantity"]))
+            expires_at = datetime.fromisoformat(str(wire["expires_at"]).replace("Z", "+00:00"))
         except (ValueError, TypeError, InvalidOperation) as exc:
             raise ValueError("invalid typed contract value") from exc
 
         if quantity <= 0 or not quantity.is_finite():
             raise ValueError("quantity must be positive and finite")
-        if issued_at.tzinfo is None or expires_at.tzinfo is None:
-            raise ValueError("authorization timestamps must be timezone-aware")
-        if expires_at <= issued_at:
-            raise ValueError("authorization expiry must follow issuance")
+        if expires_at.tzinfo is None or expires_at.utcoffset() is None:
+            raise ValueError("authorization expiry must be timezone-aware")
 
         return cls(
-            schema_version="1.0",
-            authorization_id=wire["authorization_id"],
-            idempotency_key=wire["idempotency_key"],
-            fund_id=wire["fund_id"],
-            instrument=wire["instrument"],
+            schema_version="2.0",
+            authorization_book_receipt_id=str(wire["authorization_book_receipt_id"]),
+            capability=str(wire["capability"]),
+            idempotency_key=str(wire["idempotency_key"]),
+            instrument=str(wire["instrument"]),
             side=side,
             quantity=quantity,
-            decision_id=wire["decision_id"],
-            risk_id=wire["risk_id"],
-            issued_at=issued_at,
+            decision_id=str(wire["decision_id"]),
+            governance_id=str(wire["governance_id"]),
             expires_at=expires_at,
         )
 
     def fingerprint(self) -> str:
         material = {
             "schema_version": self.schema_version,
-            "authorization_id": self.authorization_id,
+            "authorization_book_receipt_id": self.authorization_book_receipt_id,
+            "capability": self.capability,
             "idempotency_key": self.idempotency_key,
-            "fund_id": self.fund_id,
             "instrument": self.instrument,
             "side": self.side.value,
             "quantity": format(self.quantity, "f"),
             "decision_id": self.decision_id,
-            "risk_id": self.risk_id,
-            "issued_at": self.issued_at.isoformat(),
+            "governance_id": self.governance_id,
             "expires_at": self.expires_at.isoformat(),
         }
         canonical = json.dumps(material, sort_keys=True, separators=(",", ":"))
@@ -125,8 +117,13 @@ class ExecutionRequest:
 class ExecutionReceipt:
     schema_version: str
     receipt_id: str
-    authorization_id: str
+    authorization_book_receipt_id: str
+    governance_id: str
+    capability: str
     idempotency_key: str
+    instrument: str
+    side: OrderSide
+    requested_quantity: Decimal
     status: ExecutionStatus
     venue_order_id: str | None
     executed_quantity: Decimal | None
@@ -138,8 +135,13 @@ class ExecutionReceipt:
         return {
             "schema_version": self.schema_version,
             "receipt_id": self.receipt_id,
-            "authorization_id": self.authorization_id,
+            "authorization_book_receipt_id": self.authorization_book_receipt_id,
+            "governance_id": self.governance_id,
+            "capability": self.capability,
             "idempotency_key": self.idempotency_key,
+            "instrument": self.instrument,
+            "side": self.side.value,
+            "requested_quantity": format(self.requested_quantity, "f"),
             "status": self.status.value,
             "venue_order_id": self.venue_order_id,
             "executed_quantity": None if self.executed_quantity is None else format(self.executed_quantity, "f"),

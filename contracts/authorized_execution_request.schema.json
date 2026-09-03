@@ -1,33 +1,31 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://benjamin/contracts/authorized_execution_request.schema.json",
-  "title": "AuthorizedExecutionRequest",
+  "$id": "https://the-hand.local/contracts/watchman-authorized-execution-request/2.0",
+  "title": "WatchmanAuthorizedExecutionRequestV2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "authorization_id",
+    "authorization_book_receipt_id",
+    "capability",
     "idempotency_key",
-    "fund_id",
     "instrument",
     "side",
     "quantity",
     "decision_id",
-    "risk_id",
-    "issued_at",
+    "governance_id",
     "expires_at"
   ],
   "properties": {
-    "schema_version": {"const": "1.0"},
-    "authorization_id": {"type": "string", "pattern": "^AUTH-"},
+    "schema_version": {"const": "2.0"},
+    "authorization_book_receipt_id": {"type": "string", "minLength": 1},
+    "capability": {"type": "string", "minLength": 1},
     "idempotency_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "fund_id": {"type": "string", "minLength": 1},
     "instrument": {"type": "string", "minLength": 1},
     "side": {"enum": ["BUY", "SELL"]},
     "quantity": {"type": "string", "pattern": "^(?:0*[1-9]\\d*)(?:\\.\\d+)?$|^0*\\.\\d*[1-9]\\d*$"},
     "decision_id": {"type": "string", "pattern": "^DEC-"},
-    "risk_id": {"type": "string", "pattern": "^RSK-"},
-    "issued_at": {"type": "string", "format": "date-time"},
+    "governance_id": {"type": "string", "minLength": 1},
     "expires_at": {"type": "string", "format": "date-time"}
   }
 }

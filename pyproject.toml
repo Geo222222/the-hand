@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "the-hand-execution-kernel"
 version = "0.1.0"
-description = "Exact execution boundary for Benjamin-authorized instructions"
+description = "Exact execution boundary for Watchman-authorized capabilities"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["cryptography>=43"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

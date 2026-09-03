@@ -22,6 +22,10 @@ class UntrustedAuthorization(HandError):
     pass
 
 
+class AuthorizationNotYetValid(HandError):
+    pass
+
+
 class AuthorizationExpired(HandError):
     pass
 
@@ -41,11 +45,11 @@ class EvidencePublicationError(HandError):
 @dataclass(frozen=True, slots=True)
 class RecordedExecution:
     receipt: ExecutionReceipt
-    book_receipt_id: str
+    evidence_receipt_id: str
 
 
 class ExecutionEngine:
-    """H1 execution boundary: exact, Book-verified, idempotent, evidence-recorded, dry-run only."""
+    """H2 execution boundary: exact, Watchman-verified, idempotent, dry-run only."""
 
     def __init__(
         self,
@@ -65,18 +69,12 @@ class ExecutionEngine:
             raise ContractError(str(exc)) from exc
 
         if self._adapter.mode != "DRY_RUN":
-            raise LiveExecutionDisabled("H1 permits DRY_RUN adapters only")
+            raise LiveExecutionDisabled("H2 permits DRY_RUN adapters only")
 
-        proof = self._verifier.verify(request)
-        if proof is None:
-            raise UntrustedAuthorization("no trusted BENJAMIN.AUTHORIZATION evidence found in The Book")
-
-        current_time = now or datetime.now(timezone.utc)
-        if current_time.tzinfo is None:
-            raise ContractError("execution clock must be timezone-aware")
-        if current_time >= request.expires_at:
-            raise AuthorizationExpired("authorization has expired")
-
+        # Idempotency is resolved before fresh authorization checks. An exact
+        # retry returns the already-recorded result and performs no new external
+        # action. Reusing the key for any changed instruction is a hard conflict,
+        # even when the changed instruction would also fail authorization.
         fingerprint = request.fingerprint()
         existing = self._records.get(request.idempotency_key)
         if existing is not None:
@@ -85,12 +83,31 @@ class ExecutionEngine:
                 raise IdempotencyConflict("idempotency key reused with different instruction")
             return record
 
+        proof = self._verifier.verify(request)
+        if proof is None or not proof.matches(request):
+            raise UntrustedAuthorization(
+                "no exact trusted WATCHMAN.AUTHORIZATION evidence found in The Book"
+            )
+
+        current_time = now or datetime.now(timezone.utc)
+        if current_time.tzinfo is None or current_time.utcoffset() is None:
+            raise ContractError("execution clock must be timezone-aware")
+        if current_time < proof.evaluated_at:
+            raise AuthorizationNotYetValid("execution clock precedes Watchman evaluation")
+        if current_time >= request.expires_at or current_time >= proof.valid_until:
+            raise AuthorizationExpired("Watchman authorization has expired")
+
         result = self._adapter.execute_exact(request)
         receipt = ExecutionReceipt(
-            schema_version="1.0",
+            schema_version="2.0",
             receipt_id=f"EXE-{uuid4()}",
-            authorization_id=request.authorization_id,
+            authorization_book_receipt_id=proof.book_receipt_id,
+            governance_id=proof.governance_id,
+            capability=proof.capability,
             idempotency_key=request.idempotency_key,
+            instrument=request.instrument,
+            side=request.side,
+            requested_quantity=request.quantity,
             status=result.status,
             venue_order_id=result.venue_order_id,
             executed_quantity=result.executed_quantity,
@@ -100,18 +117,14 @@ class ExecutionEngine:
         )
 
         try:
-            book_receipt_id = self._evidence_publisher.publish(
-                execution_draft(
-                    receipt,
-                    correlation_id=proof.correlation_id,
-                    authorization_book_receipt_id=proof.book_receipt_id,
-                )
+            evidence_receipt_id = self._evidence_publisher.publish(
+                execution_draft(receipt, authorization=proof)
             )
         except Exception as exc:
             raise EvidencePublicationError(
-                "execution evidence publication failed; H1 dry-run result is not considered recorded"
+                "HAND.EXECUTION evidence persistence failed; H2 dry-run result is not considered recorded"
             ) from exc
 
-        record = RecordedExecution(receipt=receipt, book_receipt_id=book_receipt_id)
+        record = RecordedExecution(receipt=receipt, evidence_receipt_id=evidence_receipt_id)
         self._records[request.idempotency_key] = (fingerprint, record)
         return record
