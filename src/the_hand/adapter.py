@@ -7,7 +7,7 @@ from typing import Protocol
 from .domain import ExecutionRequest, ExecutionStatus
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class VenueResult:
     status: ExecutionStatus
     venue_order_id: str | None = None

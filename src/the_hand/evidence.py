@@ -9,7 +9,7 @@ from .domain import ExecutionReceipt
 from .verification import AuthorizationProof
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class EvidenceDraft:
     """Private HAND.* Book Evidence Protocol v2 draft produced by The Hand."""
 

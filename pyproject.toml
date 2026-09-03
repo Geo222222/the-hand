@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "the-hand-execution-kernel"
 version = "0.1.0"
 description = "Exact execution boundary for Watchman-authorized capabilities"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = ["cryptography>=43"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0,<9"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

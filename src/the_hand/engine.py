@@ -42,7 +42,7 @@ class EvidencePublicationError(HandError):
     pass
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RecordedExecution:
     receipt: ExecutionReceipt
     evidence_receipt_id: str

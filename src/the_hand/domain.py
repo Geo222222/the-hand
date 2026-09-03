@@ -6,16 +6,16 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from enum import StrEnum
+from enum import Enum
 from typing import Any
 
 
-class OrderSide(StrEnum):
+class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
 
 
-class ExecutionStatus(StrEnum):
+class ExecutionStatus(str, Enum):
     ACCEPTED = "ACCEPTED"
     FILLED = "FILLED"
     PARTIAL = "PARTIAL"
@@ -38,7 +38,7 @@ _REQUIRED_V2 = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ExecutionRequest:
     """Exact capability request whose authority is a Watchman Book receipt."""
 
@@ -113,7 +113,7 @@ class ExecutionRequest:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ExecutionReceipt:
     schema_version: str
     receipt_id: str
