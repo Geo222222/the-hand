@@ -73,7 +73,7 @@ def _timestamp(value: Any) -> datetime:
     return result
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CommittedBookEvidence:
     """A single committed Big Book entry returned by a trusted read boundary."""
 
@@ -122,7 +122,7 @@ class WatchmanKeyRegistry:
         return self._keys.get(key_id)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AuthorizationProof:
     """Verified Watchman authority bound to one exact executable capability."""
 
