@@ -71,6 +71,18 @@ class ExecutionEngine:
         if self._adapter.mode != "DRY_RUN":
             raise LiveExecutionDisabled("H2 permits DRY_RUN adapters only")
 
+        # Idempotency is resolved before fresh authorization checks. An exact
+        # retry returns the already-recorded result and performs no new external
+        # action. Reusing the key for any changed instruction is a hard conflict,
+        # even when the changed instruction would also fail authorization.
+        fingerprint = request.fingerprint()
+        existing = self._records.get(request.idempotency_key)
+        if existing is not None:
+            existing_fingerprint, record = existing
+            if existing_fingerprint != fingerprint:
+                raise IdempotencyConflict("idempotency key reused with different instruction")
+            return record
+
         proof = self._verifier.verify(request)
         if proof is None or not proof.matches(request):
             raise UntrustedAuthorization(
@@ -84,14 +96,6 @@ class ExecutionEngine:
             raise AuthorizationNotYetValid("execution clock precedes Watchman evaluation")
         if current_time >= request.expires_at or current_time >= proof.valid_until:
             raise AuthorizationExpired("Watchman authorization has expired")
-
-        fingerprint = request.fingerprint()
-        existing = self._records.get(request.idempotency_key)
-        if existing is not None:
-            existing_fingerprint, record = existing
-            if existing_fingerprint != fingerprint:
-                raise IdempotencyConflict("idempotency key reused with different instruction")
-            return record
 
         result = self._adapter.execute_exact(request)
         receipt = ExecutionReceipt(
