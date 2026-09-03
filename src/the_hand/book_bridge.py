@@ -28,7 +28,7 @@ class HandOutboxConflict(HandBookError):
     pass
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class HandPublicIdentity:
     producer: str
     key_id: str
