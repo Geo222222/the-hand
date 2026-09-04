@@ -66,6 +66,13 @@ from .planning import (
     ReferencePrice,
     TranslationPolicy,
 )
+from .qualification import (
+    InstrumentQualification,
+    InstrumentQualificationRegistry,
+    QualificationConflict,
+    QualificationScope,
+    QualifiedProviderExecutionPlanner,
+)
 from .units import (
     AssetClass,
     ContractType,
@@ -131,6 +138,8 @@ __all__ = [
     "IdempotencyConflict",
     "IdempotencySemantics",
     "InstrumentFamily",
+    "InstrumentQualification",
+    "InstrumentQualificationRegistry",
     "LiveExecutionDisabled",
     "MalformedWatchmanAuthorization",
     "OrderSide",
@@ -142,6 +151,9 @@ __all__ = [
     "ProviderInstrumentMetadata",
     "ProviderNativeUnitModel",
     "QUARANTINED",
+    "QualificationConflict",
+    "QualificationScope",
+    "QualifiedProviderExecutionPlanner",
     "QuantizationRule",
     "RecordedExecution",
     "ReferencePrice",
