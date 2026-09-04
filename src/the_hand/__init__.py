@@ -57,6 +57,13 @@ from .engine import (
     UntrustedAuthorization,
 )
 from .evidence import EvidenceDraft, EvidencePublisher
+from .units import (
+    AssetClass,
+    ContractType,
+    ContractValueConvention,
+    InstrumentFamily,
+    ProviderInstrumentMetadata,
+)
 from .verification import (
     AuthorizationProof,
     AuthorizationVerifier,
@@ -69,6 +76,7 @@ from .verification import (
 
 __all__ = [
     "ACKNOWLEDGED",
+    "AssetClass",
     "AuthorizationAmountMismatch",
     "AuthorizationCapabilityMismatch",
     "AuthorizationExpectation",
@@ -89,6 +97,8 @@ __all__ = [
     "CapabilityRegistry",
     "CommittedBookEvidence",
     "ContractError",
+    "ContractType",
+    "ContractValueConvention",
     "DenyAllVerifier",
     "DryRunAdapter",
     "EconomicAuthorizationExpired",
@@ -111,10 +121,12 @@ __all__ = [
     "HandPublicIdentity",
     "IdempotencyConflict",
     "IdempotencySemantics",
+    "InstrumentFamily",
     "LiveExecutionDisabled",
     "MalformedWatchmanAuthorization",
     "OrderSide",
     "PENDING",
+    "ProviderInstrumentMetadata",
     "ProviderNativeUnitModel",
     "QUARANTINED",
     "RecordedExecution",
