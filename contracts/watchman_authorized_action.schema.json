@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://the-hand.internal/contracts/watchman_authorized_action.schema.json",
   "title": "WatchmanAuthorizedAction",
+  "description": "Canonical Foundation-v1 bounded economic authority delivered by Watchman to The Hand. Economic amount is not provider-native quantity. Provider quantity, contract count, lot/step mechanics, and provider order parameters are intentionally outside this exact schema and belong below The Hand translation boundary.",
   "type": "object",
   "additionalProperties": false,
   "required": [
