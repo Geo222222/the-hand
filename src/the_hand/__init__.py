@@ -57,6 +57,13 @@ from .engine import (
     UntrustedAuthorization,
 )
 from .evidence import EvidenceDraft, EvidencePublisher
+from .planning import (
+    PlanResult,
+    PlanStatus,
+    ProviderExecutionPlan,
+    ProviderExecutionPlanner,
+    ReferencePrice,
+)
 from .units import (
     AssetClass,
     ContractType,
@@ -126,10 +133,15 @@ __all__ = [
     "MalformedWatchmanAuthorization",
     "OrderSide",
     "PENDING",
+    "PlanResult",
+    "PlanStatus",
+    "ProviderExecutionPlan",
+    "ProviderExecutionPlanner",
     "ProviderInstrumentMetadata",
     "ProviderNativeUnitModel",
     "QUARANTINED",
     "RecordedExecution",
+    "ReferencePrice",
     "UntrustedAuthorization",
     "UntrustedWatchmanAuthorization",
     "VenueAdapter",
