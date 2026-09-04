@@ -30,15 +30,36 @@
 26. The Hand must fail closed when authorization is missing, ambiguous, expired, incompatible with the requested capability, blocked, cryptographically invalid, or not committed in The Book.
 27. The Hand must never infer an external financial action from conversational prose when a typed authorized action is required.
 28. The Hand may report capability availability, expected operational constraints, or execution feasibility upstream; those facts do not let it originate investment intent.
+29. Benjamin and Watchman express governed authority in economic terms. Provider-native quantity, contract count, lot/step mechanics, and provider order parameters remain below The Hand translation boundary.
+30. Capability existence, mechanism qualification, Watchman authorization, plan construction, provider submission, fill, settlement, and reconciliation are distinct states and must never be collapsed into one another.
+31. Runtime processing time may validate freshness and expiry but must not silently change the identity of a content-addressed provider execution plan.
+32. Replay/idempotency may reconstruct or reject a plan; it may not revive stale authority, mutate economic intent, or create provider execution authority.
 
-## H2 implementation rule
+## Foundation-v1 implementation rule
 
-H2 implements the target organ boundary:
+Foundation v1 implements the governed mechanics boundary:
 
-`ZLJ evidence -> Benjamin decision -> Watchman authorization -> The Hand capability invocation -> Hand execution evidence`
+```text
+ZLJ evidence
+    -> Benjamin decision / CandidateEconomicPath
+    -> Watchman bounded economic authorization
+    -> The Hand capability + provider-unit translation
+    -> ProviderExecutionPlan
+    -> HAND.EXECUTION_PLAN evidence
+```
 
-The Hand requires a typed Protocol v2 request that points to a specific committed `WATCHMAN.AUTHORIZATION` receipt. It independently verifies the Watchman signature and exact capability constraints before any adapter call. The legacy H1 `BENJAMIN.AUTHORIZATION` execution wire is intentionally rejected rather than silently translated.
+The canonical Foundation-v1 authority object is `WatchmanAuthorizedAction`. It contains economic authority and institutional lineage, not provider-native quantity. The Hand independently verifies exact committed Watchman authority before translation.
 
-The Hand uses a separate `HAND.*` producer identity for execution evidence. Physical access to Benjamin or Watchman code or keys does not grant The Hand authority to sign for those organs.
+The highest state earned by Foundation v1 is deterministic plan construction and `HAND.EXECUTION_PLAN` evidence. No provider submission, acceptance, fill, settlement, or reconciliation state is implied.
 
-H2 remains dry-run/shadow infrastructure. This bridge completes the authority boundary; it does not authorize live financial action or relax any live-execution qualification requirement.
+The Hand uses a separate `HAND.*` producer identity for evidence it owns. Physical access to Benjamin or Watchman code or keys does not grant The Hand authority to sign for those organs.
+
+## Legacy H2 compatibility rule
+
+The repository preserves an earlier certified H2 dry-run `ExecutionRequest` path with provider-facing `instrument`, `side`, and `quantity`. That compatibility contract remains historical/certified behavior only. It is not the canonical economic authority boundary and must not be read as placing provider-native quantity in Benjamin or Watchman.
+
+Foundation v1 does not silently translate or rewrite historical H1/H2 evidence.
+
+## Non-live status
+
+Foundation v1 does not authorize live financial action. Existing adapters remain dry-run only, no provider credentials are provisioned, and no provider mutation path is made reachable. Future shadow/live promotion requires separate implementation, exact qualification, isolated credentials, failure controls, reconciliation, kill switches, outcome evidence, and explicit governing promotion.
