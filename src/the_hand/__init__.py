@@ -73,6 +73,12 @@ from .qualification import (
     QualificationScope,
     QualifiedProviderExecutionPlanner,
 )
+from .replay import (
+    DurablePlanReplayStore,
+    PlanReplayConflict,
+    PlanReplayRecord,
+    ReplaySafeProviderExecutionPlanner,
+)
 from .units import (
     AssetClass,
     ContractType,
@@ -117,6 +123,7 @@ __all__ = [
     "ContractValueConvention",
     "DenyAllVerifier",
     "DryRunAdapter",
+    "DurablePlanReplayStore",
     "EconomicAuthorizationExpired",
     "EconomicAuthorizationNotYetValid",
     "EconomicDirection",
@@ -144,6 +151,8 @@ __all__ = [
     "MalformedWatchmanAuthorization",
     "OrderSide",
     "PENDING",
+    "PlanReplayConflict",
+    "PlanReplayRecord",
     "PlanResult",
     "PlanStatus",
     "ProviderExecutionPlan",
@@ -157,6 +166,7 @@ __all__ = [
     "QuantizationRule",
     "RecordedExecution",
     "ReferencePrice",
+    "ReplaySafeProviderExecutionPlanner",
     "TranslationPolicy",
     "UntrustedAuthorization",
     "UntrustedWatchmanAuthorization",
