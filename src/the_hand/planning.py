@@ -207,6 +207,36 @@ class ProviderExecutionPlan:
         ).encode("utf-8")
         return hashlib.sha256(canonical).hexdigest()
 
+    def immutable_input_hash(self) -> str:
+        """Hash only immutable causal inputs used to construct this plan.
+
+        Derived provider-native outputs are intentionally excluded. The planner
+        version is included because a planner implementation change is a causal
+        translation input even when all external evidence is unchanged.
+        """
+
+        material = {
+            "schema_version": self.schema_version,
+            "idempotency_key": self.idempotency_key,
+            "source_watchman_authorization_hash": self.source_watchman_authorization_hash,
+            "candidate_economic_path_id": self.candidate_economic_path_id,
+            "candidate_economic_path_hash": self.candidate_economic_path_hash,
+            "capability_hash": self.capability_hash,
+            "metadata_hash": self.metadata_hash,
+            "reference_price_hash": self.reference_price_hash,
+            "translation_policy_hash": self.translation_policy_hash,
+            "adapter_planner_version": self.adapter_planner_version,
+            "exact_input_hashes": list(self.exact_input_hashes),
+        }
+        canonical = json.dumps(
+            material,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
 
 @dataclass(frozen=True)
 class PlanResult:
@@ -216,7 +246,13 @@ class PlanResult:
 
 
 class ProviderExecutionPlanner:
-    """Deterministic provider planner. It returns plans or typed failures, never effects."""
+    """Deterministic provider planner. It returns plans or typed failures, never effects.
+
+    `now` is an evaluation clock used only to validate freshness and temporal
+    authority. It is deliberately excluded from content-addressed plan identity.
+    Plan `known_at` is the latest causal knowledge timestamp carried by the
+    immutable authorization/metadata/reference-price inputs actually used.
+    """
 
     def __init__(self, *, planner_version: str = "hand-provider-planner-v1") -> None:
         if not planner_version:
@@ -401,13 +437,18 @@ class ProviderExecutionPlanner:
         policy_hash = policy.content_hash()
         input_hashes = [
             f"authorization:{authorization.authorization_content_hash}",
+            f"candidate_economic_path:{authorization.candidate_economic_path_hash}",
             f"capability:{capability_hash}",
             f"metadata:{metadata_hash}",
             f"translation_policy:{policy_hash}",
         ]
+        causal_known_times = [authorization.issued_at, metadata.known_at]
         if price_hash is not None:
             input_hashes.append(f"reference_price:{price_hash}")
+            assert reference_price is not None
+            causal_known_times.append(reference_price.known_at)
         input_hashes = sorted(input_hashes)
+        causal_known_at = max(causal_known_times)
         valid_until = min(
             value
             for value in (
@@ -457,7 +498,7 @@ class ProviderExecutionPlanner:
             provider_constraints=constraints,
             idempotency_key=authorization.idempotency_key,
             adapter_planner_version=self.planner_version,
-            known_at=now,
+            known_at=causal_known_at,
             valid_until=valid_until,
             metadata_hash=metadata_hash,
             exact_input_hashes=tuple(input_hashes),
