@@ -2,196 +2,248 @@
 
 > **ZLJ sees. Benjamin decides. Watchman governs. The Hand executes. The Book remembers and proves.**
 
-The Hand is Epinnox's **authorized external-action capability plane**.
+The Hand is the institution's governed **execution/capability organ**. Its constitutional role is to receive authority that has already passed Benjamin and Watchman, resolve a qualified capability, translate economic intent into provider-native mechanics, and eventually perform and prove the exact authorized external effect.
 
-It is broader than one broker or exchange executor. The Hand is the home for tools/adapters that can create an external financial effect after the required governance has authorized the action.
+**Foundation v1 does not perform that external effect.** The highest state earned by this branch is a deterministic `ProviderExecutionPlan` and minimum-necessary `HAND.EXECUTION_PLAN` evidence. Live provider submission remains unreachable.
 
-The Hand owns **execution/capability truth**: what authorized capability was invoked, against which external system, with what exact bounded parameters, and what actually happened.
+The Hand is an execution mechanism, not an economic decision-maker.
 
-It does **not** own market intelligence, capital judgment, governance policy, or institutional memory.
-
-## Capability model
-
-The Hand may eventually contain many independently qualified capability families, for example:
+## Constitutional boundary
 
 ```text
-The Hand
-  |- exchange adapters
-  |- broker adapters
-  |- wallet / custody signing
-  |- blockchain transaction submission
-  |- bank / ACH / wire integrations
-  |- payment processors
-  |- treasury transfer / sweep capabilities
-  |- settlement providers
-  `- future approved external financial tools
-```
-
-A capability is not authority. The existence of an exchange adapter, bank API, signer, or payment integration does not permit The Hand to use it on its own.
-
-## Authority path
-
-```text
-ZLJ.INTELLIGENCE
-      |
-      v
-BENJAMIN.DECISION
-      |
-      v
-WATCHMAN.AUTHORIZATION / WATCHMAN.BLOCK
-      |
-      | exact bounded capability
-      v
-THE HAND
-      |
-      | independently verify authorization
-      | perform exact authorized effect
-      v
-External system
-      |
-      v
-HAND.EXECUTION
-      |
-      v
-THE BOOK
-```
-
-H2 implements **Watchman-authorized action -> Hand capability invocation**. Benjamin cannot authorize its own economic decision.
-
-## What The Hand receives
-
-The H2 execution request carries only the fields required to perform and prove the action:
-
-```text
-authorization_book_receipt_id
-capability
-idempotency_key
-instrument
-side
-quantity
-decision_id
-governance_id
-expires_at
-```
-
-The request points to a specific committed `WATCHMAN.AUTHORIZATION` Book receipt. It does not itself create authority.
-
-The Hand does not need the full Benjamin thesis, unrelated portfolio state, ZLJ model stack, investor records, or internal deliberations.
-
-## Independent authorization verification
-
-Before any adapter call, The Hand independently verifies that the committed Book evidence:
-
-- was produced by Watchman;
-- is exactly `WATCHMAN.AUTHORIZATION`, not `WATCHMAN.BLOCK`;
-- has a valid Ed25519 Watchman signature;
-- has an untampered payload digest;
-- contains only passing governance checks;
-- authorizes the same capability, instrument, side, quantity and idempotency key requested;
-- covers the same Benjamin decision and governance result;
-- has consistent evaluation/production/recording timing;
-- has not expired.
-
-A legacy `BENJAMIN.AUTHORIZATION` wire is rejected by H2 rather than silently upgraded.
-
-## Capability routing
-
-The Hand may contain multiple integrations capable of performing the same approved action.
-
-Example:
-
-```text
-capability: market_order.submit
-allowed_adapters:
-  - venue_a
-  - venue_b
-```
-
-The Hand may select among technically equivalent adapters **only when Watchman authorization and capability policy permit that routing**.
-
-It may optimize operational details such as provider availability, deterministic fee bounds, retry semantics, or supported order mechanics within the authorized envelope. It may not alter the economic intent.
-
-A different side, amount, destination, instrument, account, or economic purpose requires new governed authority.
-
-## Read versus write boundary
-
-Read-only market observation generally belongs upstream in ZLJ when used for perception/modeling.
-
-Authenticated operations that can change external financial state belong in The Hand, including:
-
-- submit/cancel/replace orders;
-- move or encumber funds;
-- sign transactions;
-- change custody state;
-- settle or sweep value;
-- invoke payment/banking write operations;
-- create other governed external financial effects.
-
-This keeps ZLJ from becoming an executor simply because an exchange API supports both market data and trading.
-
-## Private proof boundary
-
-Every material Hand outcome is designed to be causally linked to the exact Watchman authorization and preserved through The Book under minimum-necessary evidence rules.
-
-```text
+BENJAMIN
+CandidateEconomicPath
+bounded economic objective / amount
+          |
+          v
+WATCHMAN
+pre-action capital assessment
+          |
+          v
 WATCHMAN.AUTHORIZATION
-       |
-       v
+bounded economic authority
+          |
+          v
 THE HAND
-       |
-       v
-external action
-       |
-       v
-HAND.EXECUTION
-       |
-       v
-BIG BOOK
+authorization verification
+          |
+          v
+capability resolution
+          |
+          v
+provider instrument/unit metadata
+          |
+          v
+deterministic translation policy
+          |
+          v
+ProviderExecutionPlan
+          |
+          +----> HAND.EXECUTION_PLAN -> The Book
+          |
+          v
+FUTURE PROVIDER ADAPTER
+NOT REACHABLE IN FOUNDATION V1
 ```
 
-`HAND.EXECUTION` records the requested instrument, side and quantity together with outcome fields. The Hand signs this evidence with its own `HAND.*` identity and persists the exact signed record in a durable outbox before Book delivery.
+Benjamin owns economic judgment. Watchman owns permission, constraints, blocking, and authorization. The Hand owns execution mechanics below that authorization boundary. The Book owns durable institutional evidence and lineage.
 
-Ordinary execution/action evidence is private. The Hand does not publish actions directly to the Little Book.
+The Hand may never use capability availability, synthetic qualification, provider metadata, a Benjamin decision, or a caller-supplied boolean as a substitute for Watchman authority.
 
-If the institution later needs an external proof, The Book creates a separate minimum-necessary public attestation under explicit disclosure policy.
+## Foundation v1 contracts
 
-## Credentials and secret material
+### Capability Registry
 
-Venue credentials, signing keys, account secrets, raw identity data, banking credentials, and other secret/regulated material stay in restricted operational storage or governed secret systems.
+`HandCapability` is a durable, typed declaration of what an installation could technically perform through an integration. It binds capability/version, provider family and adapter version, environment, capability kind, supported Watchman capital-action classes, economic path families, instrument families, provider-native unit model, permission requirements, lifecycle/qualification state, idempotency semantics, limits, and provenance/hash.
 
-The Hand Book identity uses separate runtime secrets:
+The invariant is explicit:
 
-- `HAND_BOOK_KEY_ID`
-- `HAND_BOOK_ED25519_PRIVATE_KEY_B64`
+```text
+capability exists
+!= capability qualified
+!= Watchman authorized
+!= plan constructed
+!= provider submitted
+!= filled
+!= settled
+```
 
-The Hand key signs only `HAND.*` and must not be reused as the Watchman, Benjamin, or ZLJ identity.
+A capability record creates no authority to call a provider.
 
-Credentials and secret material are not placed in prompts, ordinary model memory, Git, or raw immutable proof payloads. General-purpose reasoning agents should not hold unrestricted production signing material.
+### Watchman Authorized Action intake
+
+The canonical Foundation-v1 authority object is `WatchmanAuthorizedAction`. It is an **economic authorization**, not an exchange/broker order instruction. It binds, among other lineage:
+
+- Capital Structure ID;
+- Benjamin decision ID/hash and Book receipt;
+- CandidateEconomicPath ID/hash;
+- Watchman pre-action assessment ID/hash;
+- Watchman Capital Envelope ID/hash;
+- responsibility reference/version;
+- Watchman capital-action class;
+- economic root, instrument intent, path type, and direction;
+- authorized economic amount and bounded range;
+- maximum capital commitment;
+- validity window and idempotency key;
+- permitted capability IDs/provider families;
+- Watchman policy/signature/content identity.
+
+The Hand independently verifies committed `WATCHMAN.AUTHORIZATION` Book evidence and Watchman's signature. Missing, malformed, future-dated, expired, mismatched, or conflicting authority fails closed.
+
+Provider-native fields such as quantity, contract count, lot size, step size, or provider order parameters are not members of this contract and are rejected as extra fields.
+
+### Economic amount versus provider-native amount
+
+This is a hard boundary:
+
+```text
+economic amount != provider-native quantity
+```
+
+Benjamin/Watchman may authorize an economic objective such as increasing BTC exposure by `$10,000`. Only The Hand may translate that authority into a provider representation such as base-asset quantity, quote notional, contracts, or lots after exact provider metadata is known.
+
+The Hand may translate the objective. It may not reinterpret it, reverse its direction, increase its capital authority, or originate a different amount.
+
+### ProviderInstrumentMetadata
+
+`ProviderInstrumentMetadata` describes the exact provider/instrument unit semantics required for translation. Foundation v1 supports four declared unit families:
+
+```text
+spot / base-asset quantity
+spot / quote notional
+linear derivative contracts
+inverse derivative contracts
+```
+
+Metadata can bind provider/instrument ID, economic root, asset/instrument family, base/quote/settlement assets, native unit, contract type, multiplier/value convention, inverse/linear semantics, price unit, tick size, quantity step, minimum quantity/notional, precision, lot rules, margin denomination, version/provenance, and effective/known-at validity.
+
+Core Hand code does not assume that one provider's derivative formula is universal. Provider-specific semantics must be declared in metadata and separately qualified.
+
+### TranslationPolicy
+
+`TranslationPolicy` makes quantization behavior explicit and content-addressed. It binds the policy/version, rounding rule, permitted lowering/upward translation behavior, and absolute/relative error limits.
+
+There is no implicit tolerance. `HAND.EXACT_ONLY` has zero tolerance. A non-exact translation is acceptable only when an explicit policy permits it while all Watchman bounds remain satisfied.
+
+The planner fails closed when, among other cases:
+
+- authorization is not yet valid or expired;
+- capability or exact capability/metadata qualification is absent;
+- metadata is unavailable/stale;
+- required reference price is stale;
+- provider minimums cannot represent the authority;
+- native quantity violates declared step/minimum rules;
+- quantization exceeds explicit tolerance;
+- translated economic notional exceeds Watchman's maximum/commitment;
+- action class or economic direction would change.
+
+### ProviderExecutionPlan
+
+`ProviderExecutionPlan` is the content-addressed answer to:
+
+> Given this exact Watchman economic authorization, qualified capability, provider-instrument metadata, reference-price evidence, and TranslationPolicy, how would The Hand express the authorized action through this provider?
+
+A plan binds source Watchman authorization and CandidateEconomicPath identities, capability/version/hash, provider/instrument, economic root/action class/direction, authorized economic amount, provider-native quantity/unit, quantization rule, reference-price evidence, translated economic notional/error, TranslationPolicy identity, provider constraints, idempotency key, planner version, metadata hash, exact causal input hashes, causal known-at time, validity, and plan content hash.
+
+**Plan != execution.** No provider API is called by the Foundation-v1 planner.
+
+### Deterministic replay and idempotency
+
+The runtime planning clock is used only to validate current freshness and validity. It does not participate in content-addressed plan identity.
+
+`ProviderExecutionPlan.known_at` is derived from the latest causal knowledge timestamp carried by immutable inputs actually used by v1: Watchman authorization issuance, provider metadata knowledge time, and reference-price knowledge time when a price is required. Capability, metadata, price, policy, authorization/path, and planner versions/hashes all participate in plan identity.
+
+Therefore:
+
+- the same immutable inputs at different invocation times reconstruct the exact same plan/hash and evidence payload;
+- the same inputs after restart reconstruct the same semantic plan;
+- materially different inputs cannot reuse an idempotency key;
+- stale/expired inputs are revalidated on every replay and cannot be revived from durable state.
+
+The durable replay store records only an idempotency binding between immutable-input identity and plan identity. It never returns a cached plan in place of fresh validation and has no submit/execute surface.
+
+### Synthetic unit qualification
+
+`InstrumentQualification` binds an exact capability hash to an exact provider-instrument metadata hash for a declared qualification scope. Foundation v1 includes deterministic synthetic qualification for spot, linear derivative, and inverse derivative mechanics.
+
+Synthetic qualification proves **mechanism correctness only**. It does not prove provider availability, live fill quality, slippage, profitability, live derivatives safety, or live-capital readiness. `SYNTHETIC_MECHANISM` does not satisfy `LIVE_MECHANISM`.
+
+Changing material metadata such as a contract multiplier changes the metadata hash and requires a new qualification instead of silently inheriting the prior result.
+
+## Book evidence boundary
+
+The highest evidence event earned by the Foundation-v1 planning path is:
+
+```text
+HAND.EXECUTION_PLAN
+```
+
+It proves minimum-necessary plan lineage including Watchman authorization identity, CandidateEconomicPath identity, capability identity, provider/instrument, governed economic amount, planned native quantity/unit, metadata hash, TranslationPolicy/version/hash, translation error, planner version, exact inputs, and plan content hash.
+
+Foundation v1 does **not** emit or simulate:
+
+```text
+HAND.EXECUTION_SUBMITTED
+HAND.EXECUTION_ACCEPTED
+HAND.EXECUTION_FILLED
+HAND.SETTLEMENT
+HAND.RECONCILIATION
+```
+
+No submission/fill/settlement fact exists to prove yet.
+
+The inherited pre-Foundation dry-run `HAND.EXECUTION` compatibility path remains in the repository for historical/certified interpretation. It is not the Foundation-v1 target authority/translation path and it does not establish live execution qualification.
+
+Ordinary Hand evidence is private/confidential. Evidence payloads do not contain provider API keys, access tokens, private signing material, withdrawal credentials, or unnecessary raw provider credential objects.
+
+## Legacy H2 compatibility boundary
+
+The repository predates Foundation v1 and retains the already-certified H2 dry-run `ExecutionRequest` / `WatchmanAuthorizedExecutionRequestV2` compatibility contract. That legacy wire contains provider-facing fields such as `instrument`, `side`, and `quantity` because it represented an exact dry-run capability instruction after Watchman verification.
+
+That wire is **not** the canonical Foundation-v1 economic authority contract and must never be treated as Benjamin's or Watchman's economic language. New Foundation-v1 planning uses:
+
+```text
+WatchmanAuthorizedAction
+    economic amount / path / objective
+        ↓
+The Hand translation boundary
+        ↓
+ProviderExecutionPlan
+    provider-native quantity / mechanics
+```
+
+Historical H1/H2 records preserve their historical meaning; they are not silently upgraded or reinterpreted.
+
+## Credentials and live execution
+
+Provider credentials, account secrets, withdrawal secrets, seed phrases, and provider signing material are not provisioned by Foundation v1.
+
+The repository contains an existing separate Hand Book evidence-signing boundary (`HAND_BOOK_KEY_ID` / `HAND_BOOK_ED25519_PRIVATE_KEY_B64`) for signing `HAND.*` evidence. Those are runtime secret *interfaces*, not embedded key material and not provider execution credentials. The Hand identity may sign only its own evidence namespace and must not reuse Benjamin/Watchman/ZLJ identities.
+
+Foundation v1 adds no live provider adapter, production account connection, withdrawal path, settlement adapter, or capital authority. Existing execution guards remain fail-closed and inherited adapters remain dry-run only.
 
 ## The Hand may not
 
-- invent an economic action;
+- originate an economic action or strategy;
 - infer investment intent from prose;
+- change an authorized economic direction or amount;
 - treat a Benjamin decision as self-authorizing;
-- treat a Watchman block as execution authority;
-- bypass or weaken Watchman;
-- change side, instrument, destination, amount, account, or other material intent outside the authorization;
-- extend an authorization;
-- execute an expired authorization;
-- execute the same idempotency key twice;
-- use a capability that was not authorized for the action;
-- sign as ZLJ, Benjamin, Watchman, The Martians, or The Book;
-- rewrite Book history;
-- automatically project execution history to the Little Book.
+- treat a Watchman block as authority;
+- fabricate or weaken Watchman authorization;
+- substitute capability availability/qualification for authority;
+- move provider-native quantity above The Hand translation boundary;
+- silently round beyond an explicit TranslationPolicy;
+- exceed Watchman bounds or maximum capital commitment;
+- use replay/idempotency to mutate or revive authority;
+- expose provider credentials/secrets in evidence;
+- call a provider merely because a capability exists;
+- sign as Benjamin, Watchman, ZLJ, or The Book;
+- emit fill/settlement/reconciliation evidence for events that did not happen.
 
-## Current H2 status
+## Earned status
 
-H2 implements the cryptographic/contract authority bridge but remains **dry-run only**. No H2 code authorizes live broker, exchange, bank, custody, payment, or transfer actions.
+**HAND FOUNDATION V1 — GOVERNED CAPABILITY + ECONOMIC AUTHORIZATION INTAKE + DETERMINISTIC PROVIDER TRANSLATION/PLAN EVIDENCE.**
 
-A future live capability still requires concrete adapter qualification, isolated credentials/signing, durable reconciliation, kill switches, failure recovery, capability-specific limits, provider failure handling, and explicit governing promotion.
+**NO LIVE FINANCIAL EXECUTION. NO PROVIDER SUBMISSION. NO WITHDRAWALS. NO SETTLEMENT.**
 
-See `COVENANT.md`, `PRIVACY.md`, and `contracts/PROTOCOL.md`.
-
-## Status
-
-**WATCHMAN-AUTHORIZED CAPABILITY FOUNDATION / DRY RUN — NO LIVE FINANCIAL EXECUTION.**
+Future shadow/live work requires separate qualification and governing authority. See `COVENANT.md`, `PRIVACY.md`, and `contracts/PROTOCOL.md`.
