@@ -56,7 +56,7 @@ from .engine import (
     RecordedExecution,
     UntrustedAuthorization,
 )
-from .evidence import EvidenceDraft, EvidencePublisher
+from .evidence import EvidenceDraft, EvidencePublisher, execution_plan_draft
 from .planning import (
     PlanResult,
     PlanStatus,
@@ -169,5 +169,6 @@ __all__ = [
     "WatchmanEconomicAuthorizationVerifier",
     "WatchmanKeyRegistry",
     "compute_authorization_content_hash",
+    "execution_plan_draft",
     "load_hand_book_signer_from_env",
 ]
