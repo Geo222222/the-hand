@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://the-hand.local/contracts/watchman-authorized-execution-request/2.0",
-  "title": "WatchmanAuthorizedExecutionRequestV2",
+  "title": "Legacy H2 WatchmanAuthorizedExecutionRequestV2",
+  "description": "Historical/certified dry-run compatibility contract. Its provider-facing instrument/side/quantity fields are not the canonical Foundation-v1 economic authority language. New Foundation-v1 planning uses WatchmanAuthorizedAction for bounded economic authority and translates provider-native quantity only inside The Hand.",
   "type": "object",
   "additionalProperties": false,
   "required": [
