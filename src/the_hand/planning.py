@@ -4,7 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass, replace
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from enum import Enum
 
 from .authorization import WatchmanAuthorizedAction
@@ -22,6 +22,64 @@ class PlanStatus(str, Enum):
     REFERENCE_PRICE_STALE = "REFERENCE_PRICE_STALE"
     EXACT_QUANTIZATION_REQUIRED = "EXACT_QUANTIZATION_REQUIRED"
     NATIVE_MINIMUM_EXCEEDS_AUTHORITY = "NATIVE_MINIMUM_EXCEEDS_AUTHORITY"
+    QUANTIZATION_OUTSIDE_TOLERANCE = "QUANTIZATION_OUTSIDE_TOLERANCE"
+    TRANSLATION_DIRECTION_CHANGED = "TRANSLATION_DIRECTION_CHANGED"
+
+
+class QuantizationRule(str, Enum):
+    EXACT = "EXACT"
+    DOWN = "DOWN"
+    NEAREST = "NEAREST"
+
+
+@dataclass(frozen=True)
+class TranslationPolicy:
+    policy_id: str
+    version: str
+    quantization_rule: QuantizationRule
+    max_absolute_error: Decimal
+    max_relative_error: Decimal
+    allow_lower_quantity: bool
+    allow_upward_translation: bool
+
+    def __post_init__(self) -> None:
+        if not self.policy_id or not self.version:
+            raise ValueError("translation policy id and version are required")
+        for field, value in (
+            ("max_absolute_error", self.max_absolute_error),
+            ("max_relative_error", self.max_relative_error),
+        ):
+            if value < 0 or not value.is_finite():
+                raise ValueError(f"{field} must be finite and non-negative")
+
+    @classmethod
+    def exact_only(cls) -> "TranslationPolicy":
+        return cls(
+            policy_id="HAND.EXACT_ONLY",
+            version="1",
+            quantization_rule=QuantizationRule.EXACT,
+            max_absolute_error=Decimal("0"),
+            max_relative_error=Decimal("0"),
+            allow_lower_quantity=False,
+            allow_upward_translation=False,
+        )
+
+    def to_wire(self) -> dict[str, object]:
+        return {
+            "policy_id": self.policy_id,
+            "version": self.version,
+            "quantization_rule": self.quantization_rule.value,
+            "max_absolute_error": format(self.max_absolute_error, "f"),
+            "max_relative_error": format(self.max_relative_error, "f"),
+            "allow_lower_quantity": self.allow_lower_quantity,
+            "allow_upward_translation": self.allow_upward_translation,
+        }
+
+    def content_hash(self) -> str:
+        canonical = json.dumps(
+            self.to_wire(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -83,6 +141,9 @@ class ProviderExecutionPlan:
     reference_price_hash: str | None
     translated_economic_notional: Decimal
     translation_error: Decimal
+    translation_policy_id: str
+    translation_policy_version: str
+    translation_policy_hash: str
     provider_constraints: tuple[tuple[str, str], ...]
     idempotency_key: str
     adapter_planner_version: str
@@ -121,6 +182,9 @@ class ProviderExecutionPlan:
             "reference_price_hash": self.reference_price_hash,
             "translated_economic_notional": format(self.translated_economic_notional, "f"),
             "translation_error": format(self.translation_error, "f"),
+            "translation_policy_id": self.translation_policy_id,
+            "translation_policy_version": self.translation_policy_version,
+            "translation_policy_hash": self.translation_policy_hash,
             "provider_constraints": {key: value for key, value in self.provider_constraints},
             "idempotency_key": self.idempotency_key,
             "adapter_planner_version": self.adapter_planner_version,
@@ -152,7 +216,7 @@ class PlanResult:
 
 
 class ProviderExecutionPlanner:
-    """Deterministic exact-only v1 planner. It never invokes a provider adapter."""
+    """Deterministic provider planner. It returns plans or typed failures, never effects."""
 
     def __init__(self, *, planner_version: str = "hand-provider-planner-v1") -> None:
         if not planner_version:
@@ -166,6 +230,25 @@ class ProviderExecutionPlanner:
         metadata: ProviderInstrumentMetadata,
         *,
         reference_price: ReferencePrice | None,
+        now: datetime,
+    ) -> PlanResult:
+        return self.plan(
+            authorization,
+            capability,
+            metadata,
+            reference_price=reference_price,
+            policy=TranslationPolicy.exact_only(),
+            now=now,
+        )
+
+    def plan(
+        self,
+        authorization: WatchmanAuthorizedAction,
+        capability: HandCapability,
+        metadata: ProviderInstrumentMetadata,
+        *,
+        reference_price: ReferencePrice | None,
+        policy: TranslationPolicy,
         now: datetime,
     ) -> PlanResult:
         if now.tzinfo is None or now.utcoffset() is None:
@@ -232,64 +315,95 @@ class ProviderExecutionPlanner:
             price_hash = reference_price.content_hash()
             price_valid_until = reference_price.valid_until
 
-        if unit is ProviderNativeUnitModel.BASE_ASSET_QUANTITY:
-            assert price_value is not None
-            raw_quantity = amount / price_value
-            translated = raw_quantity * price_value
-        elif unit is ProviderNativeUnitModel.QUOTE_NOTIONAL:
-            raw_quantity = amount
-            translated = raw_quantity
-        elif unit is ProviderNativeUnitModel.LINEAR_CONTRACT:
-            assert price_value is not None
-            if (
-                metadata.contract_multiplier is None
-                or metadata.contract_value_convention
-                is not ContractValueConvention.BASE_ASSET_PER_CONTRACT
-            ):
-                return PlanResult(
-                    PlanStatus.UNIT_METADATA_UNAVAILABLE,
-                    reason="linear contract metadata lacks its declared value semantics",
-                )
-            raw_quantity = amount / (metadata.contract_multiplier * price_value)
-            translated = raw_quantity * metadata.contract_multiplier * price_value
-        elif unit is ProviderNativeUnitModel.INVERSE_CONTRACT:
-            if (
-                metadata.contract_multiplier is None
-                or metadata.contract_value_convention
-                is not ContractValueConvention.QUOTE_CURRENCY_PER_CONTRACT
-            ):
-                return PlanResult(
-                    PlanStatus.UNIT_METADATA_UNAVAILABLE,
-                    reason="inverse contract metadata lacks its declared value semantics",
-                )
-            raw_quantity = amount / metadata.contract_multiplier
-            translated = raw_quantity * metadata.contract_multiplier
-        else:
-            return PlanResult(PlanStatus.UNSUPPORTED_INSTRUMENT, reason="unsupported native unit model")
+        raw_quantity, raw_translated, error = self._translate_raw(
+            amount, unit, metadata, price_value
+        )
+        if error is not None:
+            return error
 
-        step = metadata.quantity_step
-        if raw_quantity % step != 0:
+        quantized, quantization_error = self._quantize(
+            raw_quantity, metadata.quantity_step, policy
+        )
+        if quantization_error is not None:
+            return quantization_error
+        assert quantized is not None
+
+        translated, translation_error = self._translated_notional(
+            quantized, unit, metadata, price_value
+        )
+        if translation_error is not None:
+            return translation_error
+        assert translated is not None
+
+        if quantized < 0:
             return PlanResult(
-                PlanStatus.EXACT_QUANTIZATION_REQUIRED,
-                reason="raw provider quantity is not exactly aligned to the declared quantity step",
+                PlanStatus.TRANSLATION_DIRECTION_CHANGED,
+                reason="provider-native quantity must never be negative",
             )
-        if raw_quantity < metadata.minimum_quantity or translated < metadata.minimum_notional:
+        if quantized % metadata.quantity_step != 0:
+            return PlanResult(
+                PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                reason="provider-native quantity does not satisfy declared quantity step",
+            )
+        if quantized < metadata.minimum_quantity or translated < metadata.minimum_notional:
             return PlanResult(
                 PlanStatus.NATIVE_MINIMUM_EXCEEDS_AUTHORITY,
                 reason="provider minimums cannot represent the governed economic amount",
             )
-        if translated > authorization.authorized_maximum:
+        if translated > authorization.authorized_maximum or translated > authorization.maximum_capital_commitment:
             return PlanResult(
                 PlanStatus.NATIVE_MINIMUM_EXCEEDS_AUTHORITY,
-                reason="translated notional would exceed Watchman maximum",
+                reason="translated notional would exceed Watchman maximum capital authority",
+            )
+        if translated < authorization.authorized_minimum:
+            return PlanResult(
+                PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                reason="translated notional falls below Watchman's authorized economic range",
+            )
+        if translated > amount and not policy.allow_upward_translation:
+            if policy.allow_lower_quantity:
+                lower = self._floor_to_step(raw_quantity, metadata.quantity_step)
+                if lower != quantized:
+                    translated_lower, lower_error = self._translated_notional(
+                        lower, unit, metadata, price_value
+                    )
+                    if lower_error is None and translated_lower is not None:
+                        quantized = lower
+                        translated = translated_lower
+            if translated > amount:
+                return PlanResult(
+                    PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                    reason="translation policy forbids upward economic translation",
+                )
+
+        error_value = translated - amount
+        absolute_error = abs(error_value)
+        relative_error = absolute_error / amount
+        if (
+            absolute_error > policy.max_absolute_error
+            or relative_error > policy.max_relative_error
+        ):
+            return PlanResult(
+                PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                reason=(
+                    "translation error exceeds explicit policy: "
+                    f"absolute={absolute_error}, relative={relative_error}"
+                ),
+            )
+        if authorization.action_class.value not in [value.value for value in capability.supported_action_classes]:
+            return PlanResult(
+                PlanStatus.TRANSLATION_DIRECTION_CHANGED,
+                reason="action class changed across translation boundary",
             )
 
         capability_hash = capability.content_hash()
         metadata_hash = metadata.content_hash()
+        policy_hash = policy.content_hash()
         input_hashes = [
             f"authorization:{authorization.authorization_content_hash}",
             f"capability:{capability_hash}",
             f"metadata:{metadata_hash}",
+            f"translation_policy:{policy_hash}",
         ]
         if price_hash is not None:
             input_hashes.append(f"reference_price:{price_hash}")
@@ -330,13 +444,16 @@ class ProviderExecutionPlanner:
             action=authorization.economic_direction.value,
             economic_amount_authorized=amount,
             authorized_maximum=authorization.authorized_maximum,
-            native_quantity=raw_quantity,
+            native_quantity=quantized,
             native_unit_type=unit,
-            rounding_rule="EXACT_ONLY",
+            rounding_rule=policy.quantization_rule.value,
             reference_price=price_value,
             reference_price_hash=price_hash,
             translated_economic_notional=translated,
-            translation_error=translated - amount,
+            translation_error=error_value,
+            translation_policy_id=policy.policy_id,
+            translation_policy_version=policy.version,
+            translation_policy_hash=policy_hash,
             provider_constraints=constraints,
             idempotency_key=authorization.idempotency_key,
             adapter_planner_version=self.planner_version,
@@ -346,3 +463,116 @@ class ProviderExecutionPlanner:
             exact_input_hashes=tuple(input_hashes),
         )
         return PlanResult(PlanStatus.TRANSLATABLE, plan=plan)
+
+    def _translate_raw(
+        self,
+        amount: Decimal,
+        unit: ProviderNativeUnitModel,
+        metadata: ProviderInstrumentMetadata,
+        price: Decimal | None,
+    ) -> tuple[Decimal, Decimal | None, PlanResult | None]:
+        if unit is ProviderNativeUnitModel.BASE_ASSET_QUANTITY:
+            if price is None:
+                return Decimal("0"), None, PlanResult(
+                    PlanStatus.REFERENCE_PRICE_STALE, reason="reference price required"
+                )
+            raw = amount / price
+            return raw, raw * price, None
+        if unit is ProviderNativeUnitModel.QUOTE_NOTIONAL:
+            return amount, amount, None
+        if unit is ProviderNativeUnitModel.LINEAR_CONTRACT:
+            if (
+                price is None
+                or metadata.contract_multiplier is None
+                or metadata.contract_value_convention
+                is not ContractValueConvention.BASE_ASSET_PER_CONTRACT
+            ):
+                return Decimal("0"), None, PlanResult(
+                    PlanStatus.UNIT_METADATA_UNAVAILABLE,
+                    reason="linear contract metadata lacks declared value semantics",
+                )
+            raw = amount / (metadata.contract_multiplier * price)
+            return raw, raw * metadata.contract_multiplier * price, None
+        if unit is ProviderNativeUnitModel.INVERSE_CONTRACT:
+            if (
+                metadata.contract_multiplier is None
+                or metadata.contract_value_convention
+                is not ContractValueConvention.QUOTE_CURRENCY_PER_CONTRACT
+            ):
+                return Decimal("0"), None, PlanResult(
+                    PlanStatus.UNIT_METADATA_UNAVAILABLE,
+                    reason="inverse contract metadata lacks declared value semantics",
+                )
+            raw = amount / metadata.contract_multiplier
+            return raw, raw * metadata.contract_multiplier, None
+        return Decimal("0"), None, PlanResult(
+            PlanStatus.UNSUPPORTED_INSTRUMENT, reason="unsupported native unit model"
+        )
+
+    def _translated_notional(
+        self,
+        quantity: Decimal,
+        unit: ProviderNativeUnitModel,
+        metadata: ProviderInstrumentMetadata,
+        price: Decimal | None,
+    ) -> tuple[Decimal | None, PlanResult | None]:
+        if unit is ProviderNativeUnitModel.BASE_ASSET_QUANTITY:
+            if price is None:
+                return None, PlanResult(PlanStatus.REFERENCE_PRICE_STALE, reason="reference price required")
+            return quantity * price, None
+        if unit is ProviderNativeUnitModel.QUOTE_NOTIONAL:
+            return quantity, None
+        if unit is ProviderNativeUnitModel.LINEAR_CONTRACT:
+            if price is None or metadata.contract_multiplier is None:
+                return None, PlanResult(
+                    PlanStatus.UNIT_METADATA_UNAVAILABLE, reason="linear multiplier/price unavailable"
+                )
+            return quantity * metadata.contract_multiplier * price, None
+        if unit is ProviderNativeUnitModel.INVERSE_CONTRACT:
+            if metadata.contract_multiplier is None:
+                return None, PlanResult(
+                    PlanStatus.UNIT_METADATA_UNAVAILABLE, reason="inverse multiplier unavailable"
+                )
+            return quantity * metadata.contract_multiplier, None
+        return None, PlanResult(PlanStatus.UNSUPPORTED_INSTRUMENT, reason="unsupported unit model")
+
+    def _quantize(
+        self, raw: Decimal, step: Decimal, policy: TranslationPolicy
+    ) -> tuple[Decimal | None, PlanResult | None]:
+        aligned = raw % step == 0
+        if policy.quantization_rule is QuantizationRule.EXACT:
+            if not aligned:
+                return None, PlanResult(
+                    PlanStatus.EXACT_QUANTIZATION_REQUIRED,
+                    reason="raw provider quantity is not exactly aligned to the declared quantity step",
+                )
+            return raw, None
+        if policy.quantization_rule is QuantizationRule.DOWN:
+            quantized = self._floor_to_step(raw, step)
+            if quantized != raw and not policy.allow_lower_quantity:
+                return None, PlanResult(
+                    PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                    reason="policy does not permit lowering provider quantity",
+                )
+            return quantized, None
+        if policy.quantization_rule is QuantizationRule.NEAREST:
+            units = (raw / step).to_integral_value(rounding=ROUND_HALF_UP)
+            candidate = units * step
+            if candidate > raw and not policy.allow_upward_translation:
+                if policy.allow_lower_quantity:
+                    candidate = self._floor_to_step(raw, step)
+                else:
+                    return None, PlanResult(
+                        PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+                        reason="nearest quantity rounds upward but policy forbids upward translation",
+                    )
+            return candidate, None
+        return None, PlanResult(
+            PlanStatus.QUANTIZATION_OUTSIDE_TOLERANCE,
+            reason="unsupported quantization policy",
+        )
+
+    @staticmethod
+    def _floor_to_step(raw: Decimal, step: Decimal) -> Decimal:
+        units = (raw / step).to_integral_value(rounding=ROUND_FLOOR)
+        return units * step
